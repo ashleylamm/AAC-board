@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>廣東話 AAC 輔助溝通板 (Cantonese AAC Communicator)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@500;700;900&family=Nunito:wght@700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#075985',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans HK"', 'Nunito', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans HK', 'Nunito', sans-serif;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .aac-card {
+            transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+        }
+        .aac-card:active {
+            transform: scale(0.95);
+        }
+
+        .dragging {
+            opacity: 0.4;
+            transform: scale(1.05);
+        }
+        .drag-over {
+            border-color: #0284c7 !important;
+            background-color: #e0f2fe !important;
+            transform: scale(1.02);
+        }
+
+        /* 編輯模式下的晃動動畫特效 */
+        @keyframes subtleShake {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(-1deg); }
+            75% { transform: rotate(1deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .edit-mode-card {
+            animation: subtleShake 0.3s infinite ease-in-out;
+            border-color: #f59e0b !important;
+        }
+
+        @keyframes activeSpeak {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.7); }
+            50% { transform: scale(1.08); box-shadow: 0 0 0 10px rgba(2, 132, 199, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(2, 132, 199, 0); }
+        }
+        .speaking-highlight {
+            animation: activeSpeak 0.6s infinite ease-in-out;
+            border-color: #0284c7 !important;
+            background-color: #38bdf8 !important;
+            color: white !important;
+            z-index: 20;
+        }
+
+        ::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <!-- Top Application Header -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center gap-3">
+                <div class="bg-brand-500 text-white p-2.5 rounded-2xl shadow-md flex items-center justify-center">
+                    <i class="fa-solid font-bold fa-comments text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-black text-slate-800 tracking-wide">粵語 AAC 溝通板</h1>
+                    <p class="text-xs text-slate-500 hidden sm:block">專為廣東話語音設計的圖卡造句介面</p>
+                </div>
+            </div>
+
+            <!-- Header Quick Actions -->
+            <div class="flex items-center gap-2">
+                <!-- 新增圖片 (Google Form) 按鈕 -->
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLSeKrxjdYjOhycDF9nhZkd0WE5_5CKDHt3yBVeIuSgWrCnMCLQ/viewform?pli=1&pli=1" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 active:bg-sky-200 text-sky-700 font-bold px-3 py-2 rounded-xl border border-sky-200 text-sm transition">
+                    <i class="fa-solid fa-circle-plus text-sky-600"></i>
+                    <span>新增圖片</span>
+                </a>
+                <button onclick="fetchCardsFromGoogleSheet()" class="flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-700 font-bold px-3 py-2 rounded-xl border border-emerald-200 text-sm transition">
+                    <i class="fa-solid fa-arrows-rotate text-emerald-600"></i>
+                    <span>同步雲端圖卡</span>
+                </button>
+                <button id="btnSettings" onclick="toggleModal('settingsModal')" class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 font-bold px-3 py-2 rounded-xl border border-slate-300 text-sm transition">
+                    <i class="fa-solid fa-sliders text-brand-600"></i>
+                    <span>設定</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-7xl w-full mx-auto p-3 sm:p-5 flex-1 flex flex-col gap-4">
+
+        <!-- Top Sentence Strip Area -->
+        <section class="bg-white rounded-3xl p-4 sm:p-5 shadow-md border-2 border-slate-200 flex flex-col gap-3">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="bg-amber-100 text-amber-800 font-bold text-xs px-2.5 py-1 rounded-full border border-amber-200">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>造句欄 (Sentence Strip)
+                    </span>
+                    <span id="sentenceCount" class="text-xs font-semibold text-slate-400">0 / 8 張圖卡</span>
+                </div>
+                <div class="text-xs text-slate-400 flex items-center gap-1">
+                    <i class="fa-solid fa-info-circle"></i>
+                    <span class="hidden sm:inline">點擊或拖曳下方圖卡至此</span>
+                </div>
+            </div>
+
+            <!-- Dynamic Sentence Dropzone container -->
+            <div id="sentenceStrip" 
+                 class="min-h-[130px] sm:min-h-[150px] p-3 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-300 flex items-center gap-3 overflow-x-auto transition-all duration-200 relative"
+                 ondragover="handleDragOver(event)"
+                 ondragleave="handleDragLeave(event)"
+                 ondrop="handleDropOnStrip(event)">
+                
+                <div id="emptyStripPrompt" class="w-full flex flex-col items-center justify-center text-slate-400 py-4 pointer-events-none">
+                    <i class="fa-solid fa-hand-pointer text-3xl mb-2 text-slate-300 animate-bounce"></i>
+                    <p class="font-bold text-sm sm:text-base">請點擊或拖曳下方的圖卡來組合句子</p>
+                </div>
+            </div>
+
+            <!-- Sentence Action Controls -->
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div class="flex items-center gap-2">
+                    <button onclick="backspaceSentence()" class="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm sm:text-base transition">
+                        <i class="fa-solid fa-delete-left text-lg"></i>
+                        <span>退格</span>
+                    </button>
+                    <button onclick="clearSentence()" class="flex items-center gap-1.5 bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-bold px-4 py-2.5 rounded-xl shadow-sm text-sm sm:text-base transition">
+                        <i class="fa-solid fa-trash-can text-lg"></i>
+                        <span>清除</span>
+                    </button>
+                </div>
+
+                <button id="btnPlaySentence" onclick="playFullSentence()" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold px-6 py-3 rounded-xl shadow-md text-base sm:text-lg transition min-w-[180px]">
+                    <i class="fa-solid fa-volume-high text-xl"></i>
+                    <span>朗讀全句</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Bottom Card Palette Area -->
+        <section class="bg-white rounded-3xl p-4 sm:p-5 shadow-md border-2 border-slate-200 flex-1 flex flex-col gap-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-grip text-brand-500"></i>
+                        <span>圖卡選擇區</span>
+                    </h2>
+                    <span id="totalCardsBadge" class="bg-slate-100 text-slate-600 font-bold text-xs px-2.5 py-0.5 rounded-full border border-slate-200">
+                        0 張圖卡
+                    </span>
+
+                    <!-- 編輯模式切換按鈕 -->
+                    <button id="btnToggleEditMode" onclick="toggleEditMode()" class="flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-700 font-bold px-3 py-1.5 rounded-xl border border-amber-300 text-xs transition">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                        <span id="editModeBtnText">開啟分類編輯模式</span>
+                    </button>
+                </div>
+
+                <!-- Search Input Bar -->
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="searchInput" oninput="filterCards()" placeholder="搜尋圖卡名稱..."
+                           class="w-full pl-10 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white transition">
+                    <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 10 個自訂分類頁籤 (Filter & Drop Target Tabs) -->
+            <div id="categoryTabs" class="flex gap-2 overflow-x-auto pb-2">
+                <!-- 由 JavaScript 自動動態生成 -->
+            </div>
+
+            <!-- 編輯模式提示 -->
+            <div id="editModeNotice" class="hidden bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-2">
+                <i class="fa-solid fa-info-circle text-amber-600 text-sm"></i>
+                <span>編輯模式已開啟：你可以點擊圖卡修改分類，或直接把圖卡「拖放」到上方的分類頁籤進行歸類！</span>
+            </div>
+
+            <!-- Grid for Cards -->
+            <div id="cardPalette" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 p-1">
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast notification -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-800 text-white font-bold px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-none">
+        <i id="toastIcon" class="fa-solid fa-circle-info text-brand-500 text-lg"></i>
+        <span id="toastMsg" class="text-sm">通知訊息</span>
+    </div>
+
+    <!-- Modal: 分類搬移/編輯視窗 -->
+    <div id="editCardModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-5 transform transition-all">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-folder-tree text-amber-500"></i>
+                    <span>移動圖卡至分類</span>
+                </h3>
+                <button onclick="toggleModal('editCardModal')" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                    <div id="editCardPreview" class="w-12 h-12 flex items-center justify-center text-2xl font-bold"></div>
+                    <div>
+                        <div id="editCardLabel" class="text-lg font-black text-slate-800">圖卡名稱</div>
+                        <div class="text-xs text-slate-400">請選擇要搬移的目标分類</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">目標分類 (共有 10 個自訂分類)</label>
+                    <select id="editCardCategorySelect" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-700 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <button onclick="toggleModal('editCardModal')" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-4 py-2 rounded-xl text-sm transition">
+                    取消
+                </button>
+                <button onclick="saveCardCategoryFromModal()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2 rounded-xl text-sm shadow-sm transition">
+                    確定移動
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: 語音與音量設定 -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 flex flex-col gap-5 transform transition-all">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-brand-500"></i>
+                    <span>語音與音量設定</span>
+                </h3>
+                <button onclick="toggleModal('settingsModal')" class="text-slate-400 hover:text-slate-600 text-xl font-bold p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">廣東話/中文 語音發音人</label>
+                    <select id="voiceSelect" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-700 text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                    </select>
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                        <span>語速 (Speech Rate)</span>
+                        <span id="rateVal">0.9x</span>
+                    </div>
+                    <input type="range" id="rateRange" min="0.5" max="1.5" step="0.1" value="0.9" oninput="updateSpeedValue(this.value)" class="w-full accent-brand-500 h-2 bg-slate-200 rounded-lg cursor-pointer">
+                </div>
+
+                <div>
+                    <div class="flex justify-between text-xs font-bold text-slate-600 mb-1">
+                        <span>音調 (Pitch)</span>
+                        <span id="pitchVal">1.0</span>
+                    </div>
+                    <input type="range" id="pitchRange" min="0.5" max="1.5" step="0.1" value="1.0" oninput="updatePitchValue(this.value)" class="w-full accent-brand-500 h-2 bg-slate-200 rounded-lg cursor-pointer">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <button onclick="testSpeech()" class="bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold px-4 py-2 rounded-xl text-sm transition">
+                    <i class="fa-solid fa-volume-low mr-1"></i>測試發音
+                </button>
+                <button onclick="toggleModal('settingsModal')" class="bg-brand-500 hover:bg-brand-600 text-white font-bold px-5 py-2 rounded-xl text-sm shadow-sm transition">
+                    確定關閉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxx0NFPTCtxrtioCdvE22I1rW0QfjYme3L8WlAu5_pmYEwr4hZH-fexrabbU5QZ5IMPng/exec';
+
+        // 10 個自訂分類定義
+        const CATEGORIES = [
+            { id: "all", name: "全部" },
+            { id: "core", name: "核心詞彙" },
+            { id: "food", name: "飲食" },
+            { id: "action", name: "需求/動作" },
+            { id: "emotion", name: "感受/情緒" },
+            { id: "people", name: "人物" },
+            { id: "place", name: "地點" },
+            { id: "daily", name: "日常用品" },
+            { id: "time", name: "時間/數量" },
+            { id: "activity", name: "活動" },
+            { id: "other", name: "其他" }
+        ];
+
+        // 預設廣東話範例圖卡
+        const DEFAULT_PRESET_CARDS = [
+            { id: "p1", label: "我", image_url: "fa-user", bg_color: "#bfdbfe", category: "core" },
+            { id: "p2", label: "要", image_url: "fa-hand-holding-heart", bg_color: "#fef08a", category: "core" },
+            { id: "p3", label: "食", image_url: "fa-utensils", bg_color: "#bbf7d0", category: "food" },
+            { id: "p4", label: "飲", image_url: "fa-glass-water", bg_color: "#bbf7d0", category: "food" },
+            { id: "p5", label: "蘋果", image_url: "fa-apple-whole", bg_color: "#fbcfe8", category: "food" },
+            { id: "p6", label: "水", image_url: "fa-bottle-water", bg_color: "#e9d5ff", category: "food" },
+            { id: "p7", label: "多謝", image_url: "fa-hands-clapping", bg_color: "#fed7aa", category: "core" },
+            { id: "p8", label: "唔該", image_url: "fa-person-rays", bg_color: "#fed7aa", category: "core" },
+            { id: "p9", label: "痛", image_url: "fa-face-sad-cry", bg_color: "#fecdd3", category: "emotion" },
+            { id: "p10", label: "好", image_url: "fa-thumbs-up", bg_color: "#d9f99d", category: "emotion" }
+        ];
+
+        let cardPaletteList = [];
+        let sentenceList = [];
+        let cantoneseVoice = null;
+        let isSpeaking = false;
+        let draggedCardData = null;
+        let currentCategory = "all";
+        let isEditMode = false;
+        let editingCardId = null;
+
+        // 本地分類儲存庫管理 (LocalStorage)
+        function loadSavedCategories() {
+            try {
+                return JSON.parse(localStorage.getItem('aac_card_categories') || '{}');
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function saveCardCategoryToStorage(cardId, categoryId) {
+            const saved = loadSavedCategories();
+            saved[cardId] = categoryId;
+            localStorage.setItem('aac_card_categories', JSON.stringify(saved));
+        }
+
+        // 切換編輯模式
+        function toggleEditMode() {
+            isEditMode = !isEditMode;
+            const btn = document.getElementById('btnToggleEditMode');
+            const btnText = document.getElementById('editModeBtnText');
+            const notice = document.getElementById('editModeNotice');
+
+            if (isEditMode) {
+                btn.className = "flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-1.5 rounded-xl border border-amber-600 text-xs transition shadow-sm";
+                btnText.textContent = "完成分類編輯";
+                notice.classList.remove('hidden');
+                showToast("已進入編輯模式，點擊或拖曳圖卡即可分類", "info");
+            } else {
+                btn.className = "flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-700 font-bold px-3 py-1.5 rounded-xl border border-amber-300 text-xs transition";
+                btnText.textContent = "開啟分類編輯模式";
+                notice.classList.add('hidden');
+                showToast("已離開編輯模式", "info");
+            }
+            renderPalette();
+        }
+
+        // 從 Apps Script Web App API 抓取圖卡
+        async function fetchCardsFromGoogleSheet() {
+            showToast("正在同步雲端圖卡...", "info");
+
+            const savedCategories = loadSavedCategories();
+
+            try {
+                const response = await fetch(GAS_WEB_APP_URL);
+                const data = await response.json();
+
+                if (Array.isArray(data) && data.length > 0) {
+                    const fetchedCards = data.map((item, index) => {
+                        const id = `gsheet_${index}`;
+                        return {
+                            id: id,
+                            label: item.label,
+                            image_url: processImageUrl(item.image_url),
+                            bg_color: '#f8fafc',
+                            category: savedCategories[id] || item.category || 'other'
+                        };
+                    });
+
+                    const presetsWithSavedCat = DEFAULT_PRESET_CARDS.map(c => ({
+                        ...c,
+                        category: savedCategories[c.id] || c.category
+                    }));
+
+                    cardPaletteList = [...presetsWithSavedCat, ...fetchedCards];
+                    renderPalette();
+                    showToast(`成功同步 ${fetchedCards.length} 張雲端圖卡！`, "success");
+                } else {
+                    cardPaletteList = DEFAULT_PRESET_CARDS.map(c => ({
+                        ...c,
+                        category: savedCategories[c.id] || c.category
+                    }));
+                    renderPalette();
+                    showToast("同步完成，但試算表中未發現資料", "info");
+                }
+            } catch (error) {
+                console.error("無法載入資料:", error);
+                showToast("讀取失敗，請確認 Apps Script 部署與權限", "error");
+                cardPaletteList = DEFAULT_PRESET_CARDS.map(c => ({
+                    ...c,
+                    category: savedCategories[c.id] || c.category
+                }));
+                renderPalette();
+            }
+        }
+
+        // 轉換 Google Drive 網址為 CDN 直連
+        function processImageUrl(url) {
+            if (!url) return '';
+            var match = url.match(/\/d\/([a-zA-Z0-9_-]+)/) || url.match(/id=([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) {
+                return "https://lh3.googleusercontent.com/d/" + match[1];
+            }
+            return url;
+        }
+
+        // 語音引擎初始化
+        function initSpeech() {
+            if (!('speechSynthesis' in window)) {
+                showToast("您的瀏覽器不支援語音功能", "error");
+                return;
+            }
+
+            function loadVoices() {
+                const voices = window.speechSynthesis.getVoices();
+                const voiceSelect = document.getElementById('voiceSelect');
+                voiceSelect.innerHTML = '';
+
+                let preferredVoice = voices.find(v => v.lang === 'zh-HK' || v.lang === 'yue-HK' || v.lang === 'zh-YUE');
+                if (!preferredVoice) {
+                    preferredVoice = voices.find(v => v.lang.startsWith('zh') || v.lang.includes('Chinese'));
+                }
+
+                voices.forEach((v, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = index;
+                    opt.textContent = `${v.name} (${v.lang})`;
+                    if (v === preferredVoice) {
+                        opt.selected = true;
+                        cantoneseVoice = v;
+                    }
+                    voiceSelect.appendChild(opt);
+                });
+
+                voiceSelect.onchange = (e) => {
+                    cantoneseVoice = voices[e.target.value];
+                };
+            }
+
+            loadVoices();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+
+        // 圖片讀取失敗備援處理
+        function handleImageError(imgEl, labelText) {
+            const parent = imgEl.parentElement;
+            if (parent) {
+                parent.innerHTML = `<div class="w-12 h-12 sm:w-16 sm:h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl border-2 border-brand-200 shadow-inner">${labelText.charAt(0)}</div>`;
+            }
+        }
+
+        // 渲染分類頁籤 (包含 Drop Target 支持拖曳歸類)
+        function renderCategoryTabs() {
+            const tabsContainer = document.getElementById('categoryTabs');
+            tabsContainer.innerHTML = '';
+
+            CATEGORIES.forEach(cat => {
+                const btn = document.createElement('button');
+                const isActive = currentCategory === cat.id;
+
+                btn.className = `px-3.5 py-2 rounded-2xl font-bold text-xs sm:text-sm whitespace-nowrap transition flex items-center gap-1.5 shrink-0 border-2 ${
+                    isActive 
+                    ? 'bg-brand-500 border-brand-600 text-white shadow-sm' 
+                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700'
+                }`;
+                
+                btn.innerHTML = `<span>${cat.name}</span>`;
+
+                // 點擊切換分類
+                btn.onclick = () => {
+                    currentCategory = cat.id;
+                    renderCategoryTabs();
+                    filterCards();
+                };
+
+                // 支持將圖卡直接拖曳至 Tab 進行歸類 (Drag and Drop onto Category Tab)
+                if (cat.id !== "all") {
+                    btn.ondragover = (e) => {
+                        e.preventDefault();
+                        btn.classList.add('bg-amber-100', 'border-amber-400', 'scale-105');
+                    };
+                    btn.ondragleave = () => {
+                        btn.classList.remove('bg-amber-100', 'border-amber-400', 'scale-105');
+                    };
+                    btn.ondrop = (e) => {
+                        e.preventDefault();
+                        btn.classList.remove('bg-amber-100', 'border-amber-400', 'scale-105');
+                        
+                        if (draggedCardData) {
+                            moveCardToCategory(draggedCardData.id, cat.id);
+                            draggedCardData = null;
+                        }
+                    };
+                }
+
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        // 將指定圖卡移動到特定分類
+        function moveCardToCategory(cardId, targetCategoryId) {
+            const card = cardPaletteList.find(c => c.id === cardId);
+            if (card) {
+                card.category = targetCategoryId;
+                saveCardCategoryToStorage(cardId, targetCategoryId);
+                const categoryObj = CATEGORIES.find(c => c.id === targetCategoryId);
+                showToast(`已將「${card.label}」搬移至「${categoryObj ? categoryObj.name : targetCategoryId}」`, "success");
+                renderPalette();
+            }
+        }
+
+        // 渲染圖卡區
+        function renderPalette(cardsToRender = null) {
+            if (!cardsToRender) {
+                const query = document.getElementById('searchInput').value.trim().toLowerCase();
+                cardsToRender = cardPaletteList.filter(card => {
+                    const matchesCategory = (currentCategory === "all") || (card.category === currentCategory);
+                    const matchesQuery = card.label.toLowerCase().includes(query);
+                    return matchesCategory && matchesQuery;
+                });
+            }
+
+            const paletteEl = document.getElementById('cardPalette');
+            paletteEl.innerHTML = '';
+
+            document.getElementById('totalCardsBadge').textContent = `${cardsToRender.length} 張圖卡`;
+
+            if (cardsToRender.length === 0) {
+                paletteEl.innerHTML = `
+                    <div class="col-span-full py-12 text-center text-slate-400 font-bold">
+                        <i class="fa-solid fa-folder-open text-4xl mb-2 text-slate-300"></i>
+                        <p>此分類暫無圖卡，你可以切換至「全部」或開啟編輯模式將圖卡移至此處</p>
+                    </div>
+                `;
+                return;
+            }
+
+            cardsToRender.forEach(card => {
+                const cardEl = document.createElement('div');
+                cardEl.className = `aac-card relative cursor-pointer rounded-2xl p-3 flex flex-col items-center justify-between border-2 border-slate-200 shadow-sm hover:shadow-md transition active:scale-95 touch-none group ${isEditMode ? 'edit-mode-card border-amber-400' : ''}`;
+                cardEl.style.backgroundColor = card.bg_color || '#f8fafc';
+                cardEl.draggable = true;
+
+                let graphicHTML = '';
+                if (card.image_url && (card.image_url.startsWith('http') || card.image_url.startsWith('data:'))) {
+                    graphicHTML = `<img src="${card.image_url}" alt="${card.label}" class="w-12 h-12 sm:w-16 sm:h-16 object-contain rounded-lg pointer-events-none" onerror="handleImageError(this, '${card.label}')">`;
+                } else if (card.image_url && card.image_url.startsWith('fa-')) {
+                    graphicHTML = `<i class="fa-solid ${card.image_url} text-3xl sm:text-4xl text-slate-700 pointer-events-none py-2"></i>`;
+                } else {
+                    graphicHTML = `<div class="w-12 h-12 sm:w-16 sm:h-16 bg-brand-50 text-brand-600 rounded-2xl flex items-center justify-center font-black text-2xl sm:text-3xl border-2 border-brand-200 shadow-inner">${card.label.charAt(0)}</div>`;
+                }
+
+                // 分類標籤簡稱顯示
+                const catObj = CATEGORIES.find(c => c.id === card.category);
+                const catBadgeName = catObj ? catObj.name : "未分類";
+
+                cardEl.innerHTML = `
+                    ${isEditMode ? `
+                        <div class="absolute -top-2 -right-2 bg-amber-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center shadow-md text-xs font-bold z-10">
+                            <i class="fa-solid fa-pen"></i>
+                        </div>
+                    ` : ''}
+                    <div class="w-full flex items-center justify-center flex-1">
+                        ${graphicHTML}
+                    </div>
+                    <span class="text-lg sm:text-xl font-black text-slate-800 tracking-wider text-center mt-1 select-none pointer-events-none">${card.label}</span>
+                    <span class="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md mt-1">${catBadgeName}</span>
+                `;
+
+                cardEl.ondragstart = (e) => {
+                    draggedCardData = card;
+                    e.dataTransfer.setData('text/plain', JSON.stringify(card));
+                    cardEl.classList.add('dragging');
+                };
+                cardEl.ondragend = () => {
+                    cardEl.classList.remove('dragging');
+                };
+
+                cardEl.onclick = (e) => {
+                    if (isEditMode) {
+                        openEditModalForCard(card.id);
+                    } else {
+                        speakText(card.label);
+                        addToSentence(card);
+                    }
+                };
+
+                paletteEl.appendChild(cardEl);
+            });
+        }
+
+        // 開啟對話框手動選擇分類
+        function openEditModalForCard(cardId) {
+            const card = cardPaletteList.find(c => c.id === cardId);
+            if (!card) return;
+
+            editingCardId = cardId;
+            document.getElementById('editCardLabel').textContent = card.label;
+
+            const previewEl = document.getElementById('editCardPreview');
+            if (card.image_url && (card.image_url.startsWith('http') || card.image_url.startsWith('data:'))) {
+                previewEl.innerHTML = `<img src="${card.image_url}" class="w-10 h-10 object-contain rounded-lg">`;
+            } else if (card.image_url && card.image_url.startsWith('fa-')) {
+                previewEl.innerHTML = `<i class="fa-solid ${card.image_url} text-brand-600"></i>`;
+            } else {
+                previewEl.innerHTML = card.label.charAt(0);
+            }
+
+            const selectEl = document.getElementById('editCardCategorySelect');
+            selectEl.innerHTML = '';
+            CATEGORIES.filter(c => c.id !== 'all').forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                if (card.category === cat.id) opt.selected = true;
+                selectEl.appendChild(opt);
+            });
+
+            toggleModal('editCardModal');
+        }
+
+        // 從視窗確定儲存分類
+        function saveCardCategoryFromModal() {
+            if (!editingCardId) return;
+            const selectedCat = document.getElementById('editCardCategorySelect').value;
+            moveCardToCategory(editingCardId, selectedCat);
+            toggleModal('editCardModal');
+            editingCardId = null;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            document.getElementById('sentenceStrip').classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            document.getElementById('sentenceStrip').classList.remove('drag-over');
+        }
+
+        function handleDropOnStrip(e) {
+            e.preventDefault();
+            const strip = document.getElementById('sentenceStrip');
+            strip.classList.remove('drag-over');
+
+            if (draggedCardData) {
+                addToSentence(draggedCardData);
+                speakText(draggedCardData.label);
+                draggedCardData = null;
+            } else {
+                try {
+                    const raw = e.dataTransfer.getData('text/plain');
+                    if (raw) {
+                        const card = JSON.parse(raw);
+                        addToSentence(card);
+                        speakText(card.label);
+                    }
+                } catch(err) {
+                    console.error("Drop error", err);
+                }
+            }
+        }
+
+        function addToSentence(card) {
+            if (sentenceList.length >= 8) {
+                showToast("造句欄最多放 8 張圖卡", "info");
+                return;
+            }
+            sentenceList.push({ ...card, instanceId: 'inst_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4) });
+            renderSentenceStrip();
+        }
+
+        function renderSentenceStrip() {
+            const strip = document.getElementById('sentenceStrip');
+            const emptyPrompt = document.getElementById('emptyStripPrompt');
+            const countBadge = document.getElementById('sentenceCount');
+
+            countBadge.textContent = `${sentenceList.length} / 8 張圖卡`;
+
+            const existingItems = strip.querySelectorAll('.sentence-item');
+            existingItems.forEach(el => el.remove());
+
+            if (sentenceList.length === 0) {
+                emptyPrompt.classList.remove('hidden');
+                return;
+            } else {
+                emptyPrompt.classList.add('hidden');
+            }
+
+            sentenceList.forEach((card, idx) => {
+                const item = document.createElement('div');
+                item.className = `sentence-item aac-card relative group flex-shrink-0 min-w-[90px] sm:min-w-[100px] h-[100px] sm:h-[110px] p-2 rounded-2xl border-2 border-slate-300 shadow-sm flex flex-col items-center justify-between cursor-pointer transition transform hover:scale-105`;
+                item.style.backgroundColor = card.bg_color || '#ffffff';
+                item.id = `sent_item_${card.instanceId}`;
+
+                let graphicHTML = '';
+                if (card.image_url && (card.image_url.startsWith('http') || card.image_url.startsWith('data:'))) {
+                    graphicHTML = `<img src="${card.image_url}" alt="${card.label}" class="w-10 h-10 sm:w-12 sm:h-12 object-contain pointer-events-none" onerror="handleImageError(this, '${card.label}')">`;
+                } else if (card.image_url && card.image_url.startsWith('fa-')) {
+                    graphicHTML = `<i class="fa-solid ${card.image_url} text-2xl sm:text-3xl text-slate-700 pointer-events-none"></i>`;
+                } else {
+                    graphicHTML = `<div class="w-10 h-10 sm:w-12 sm:h-12 bg-brand-50 text-brand-600 rounded-xl flex items-center justify-center font-black text-xl border border-brand-200">${card.label.charAt(0)}</div>`;
+                }
+
+                item.innerHTML = `
+                    <button onclick="removeSentenceCard(${idx}, event)" title="移除" class="absolute -top-2 -right-2 bg-rose-500 hover:bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs shadow-md transition z-10">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                    <div class="w-full flex-1 flex items-center justify-center">
+                        ${graphicHTML}
+                    </div>
+                    <span class="text-base sm:text-lg font-black text-slate-800 tracking-wide text-center">${card.label}</span>
+                `;
+
+                item.onclick = (e) => {
+                    if (e.target.closest('button')) return;
+                    speakText(card.label);
+                };
+
+                strip.appendChild(item);
+            });
+        }
+
+        function removeSentenceCard(index, event) {
+            if (event) event.stopPropagation();
+            sentenceList.splice(index, 1);
+            renderSentenceStrip();
+        }
+
+        function backspaceSentence() {
+            if (sentenceList.length > 0) {
+                sentenceList.pop();
+                renderSentenceStrip();
+            }
+        }
+
+        function clearSentence() {
+            sentenceList = [];
+            renderSentenceStrip();
+            if (window.speechSynthesis) {
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        function speakText(text) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = cantoneseVoice ? cantoneseVoice.lang : 'zh-HK';
+            if (cantoneseVoice) utterance.voice = cantoneseVoice;
+
+            utterance.rate = parseFloat(document.getElementById('rateRange').value);
+            utterance.pitch = parseFloat(document.getElementById('pitchRange').value);
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        async function playFullSentence() {
+            if (sentenceList.length === 0) {
+                showToast("請先點擊圖卡加入造句欄", "info");
+                return;
+            }
+
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                isSpeaking = false;
+                return;
+            }
+
+            isSpeaking = true;
+            const btnPlay = document.getElementById('btnPlaySentence');
+            const originalBtnHTML = btnPlay.innerHTML;
+            btnPlay.innerHTML = `<i class="fa-solid fa-square text-xl"></i><span>停止朗讀</span>`;
+            btnPlay.classList.replace('bg-emerald-600', 'bg-amber-600');
+
+            for (let i = 0; i < sentenceList.length; i++) {
+                if (!isSpeaking) break;
+
+                const itemData = sentenceList[i];
+                const itemEl = document.getElementById(`sent_item_${itemData.instanceId}`);
+
+                if (itemEl) itemEl.classList.add('speaking-highlight');
+                await speakWordPromise(itemData.label);
+                if (itemEl) itemEl.classList.remove('speaking-highlight');
+            }
+
+            isSpeaking = false;
+            btnPlay.innerHTML = originalBtnHTML;
+            btnPlay.classList.replace('bg-amber-600', 'bg-emerald-600');
+        }
+
+        function speakWordPromise(text) {
+            return new Promise((resolve) => {
+                if (!('speechSynthesis' in window)) {
+                    resolve();
+                    return;
+                }
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = cantoneseVoice ? cantoneseVoice.lang : 'zh-HK';
+                if (cantoneseVoice) utterance.voice = cantoneseVoice;
+
+                utterance.rate = parseFloat(document.getElementById('rateRange').value);
+                utterance.pitch = parseFloat(document.getElementById('pitchRange').value);
+
+                utterance.onend = () => resolve();
+                utterance.onerror = () => resolve();
+
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+
+        function filterCards() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const clearBtn = document.getElementById('clearSearchBtn');
+            
+            if (query.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+
+            renderPalette();
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterCards();
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.toggle('hidden');
+            }
+        }
+
+        function updateSpeedValue(val) {
+            document.getElementById('rateVal').textContent = `${val}x`;
+        }
+
+        function updatePitchValue(val) {
+            document.getElementById('pitchVal').textContent = val;
+        }
+
+        function testSpeech() {
+            speakText("你好，這是一條廣東話測試語音。");
+        }
+
+        function showToast(msg, type = "info") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = msg;
+
+            if (type === "success") {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400 text-lg";
+            } else if (type === "error") {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-rose-400 text-lg";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-info text-brand-400 text-lg";
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // 初始化
+        window.onload = function() {
+            initSpeech();
+            renderSentenceStrip();
+            renderCategoryTabs();
+            fetchCardsFromGoogleSheet();
+        };
+    </script>
+</body>
+</html>
